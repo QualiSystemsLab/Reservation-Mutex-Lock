@@ -1,0 +1,39 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<DataModelInfo xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+               xmlns="http://schemas.qualisystems.com/ResourceManagement/DataModelSchema.xsd">
+    <Attributes>
+        <AttributeInfo Name="Mutex Owner"
+                       Description="Mutex usage: Try to add Mutex Service to the reservation with the service alias set to the same name for all threads and Mutex Owner set to the unique name of your thread. You have successfully taken the mutex only if you manage to add the service without an exception and Mutex Owner in the created service matches your thread name." Type="String" DefaultValue="" IsReadOnly="false">
+            <Rules Override="false">
+                <Rule Name="Configuration"/>
+                <Rule Name="Setting"/>
+            </Rules>
+        </AttributeInfo>
+    </Attributes>
+    <ResourceFamilies>
+        <ResourceFamily Description="" Name="Mutex Service Family" AllowRemoteConnection="false" ServiceType="Regular" IsService="true" IsAdminOnly="true">
+            <AttachedAttributes/>
+            <AttributeValues/>
+            <Models>
+                <ResourceModel Description="" Name="Mutex Service" SupportsConcurrentCommands="false">
+                    <AttachedAttributes>
+                        <AttachedAttribute Name="Mutex Owner" UserInput="true" IsLocal="true" IsOverridable="true">
+                            <AllowedValues/>
+                        </AttachedAttribute>
+                    </AttachedAttributes>
+                    <AttributeValues>
+                        <AttributeValue Name="Mutex Owner" Value=""/>
+                    </AttributeValues>
+                    <ParentModels/>
+                    <Drivers/>
+                    <Scripts>
+                    </Scripts>
+                </ResourceModel>
+            </Models>
+            <Categories/>
+        </ResourceFamily>
+    </ResourceFamilies>
+    <DriverDescriptors/>
+    <ScriptDescriptors>
+    </ScriptDescriptors>
+</DataModelInfo>
