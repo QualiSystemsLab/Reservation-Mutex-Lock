@@ -150,17 +150,9 @@ The AddServiceToReservation API protects against adding two services to a reserv
 database-based locking internally.
 
 If you call AddServiceToReservation and it succeeds, you can be sure that nobody else already added a service with the same name.
-If someone tries to ado the same thing a split second later, their attempt to add the same service name will fail, and they would wait a
+If someone tries to add the same thing a split second later, their attempt to add the same service name will fail, and they would wait a
 few seconds and try again. Based on how reliably the error "CloudShell API error 100: Service with given alias already exists" has been seen, 
 we assume that such locking exists in the product.  
-
-This should already be enough to guarantee exclusive access.
-
-For added safety, we also set a Mutex Owner attribute when creating the new service to identify the party who tried to lock it.
-If there is a bug in CloudShell where two parties simultaneously receive success from AddServiceToReservation(..., "MUTEX", ...),
-when they check the Mutex Owner attribute, only one will see its identifier and continue, and the other will
-decide to wait in spite of the successful AddServiceToReservation and try again later. Mutex Owner could also be useful for debugging, 
-if something gets stuck and leaves the Mutex Service in the reservation. 
 
 
 Note that Mutex Service itself has no functionality. It is just an arbitrary object to add to the reservation and
@@ -170,39 +162,27 @@ exploit the potential of the AddServiceToReservation API as a locking mechanism.
 ## Usage
 
 This code is only offered for convenience. You can ignore the following package and code. As long as you rely on the success of 
-AddServiceToReservation and use the service alias "MUTEX", you would be compatible with this approach.
+AddServiceToReservation and use the service alias "MUTEX", it would be compatible with this approach.
 
-Download Mutex_Package.zip from the Releases section. 
+To create a dedicated dummy service named Mutex Service, Mutex_Packages.zip is provided in the Releases section. 
+You might also paste the definition from datamodel.xml into your own package.
 
-Drag Mutex_Package.zip into the portal. This will create an admin-only service called Mutex Service. It has an attribute Mutex Owner.
-
-You might want to paste the contents of datamodel.xml into your own package.
 
 Paste the following code into your driver or script:
 
     from random import randint
     from time import sleep
     class Mutex(object):
-        def __init__(self, api, resid, my_unique_name, global_mutex_name='MUTEX', logger=None):
+        def __init__(self, api, resid, logger=None, mutex_name='MUTEX'):
             self.api = api
             self.resid = resid
-            self.my_unique_name = my_unique_name
-            self.global_mutex_name = global_mutex_name
             self.logger = logger
+            self.mutex_name = mutex_name
 
         def __enter__(self):
             for _ in range(100):
                 try:
-                    self.api.AddServiceToReservation(self.resid, 'Mutex Service', self.global_mutex_name, [
-                        AttributeNameValue('Mutex Owner', self.my_unique_name)
-                    ])
-                    for svc in self.api.GetReservationDetails(self.resid).ReservationDescription.Services:
-                        if svc.Alias == 'MUTEX':
-                            for a in svc.Attributes:
-                                if a.Name == 'Mutex Owner':
-                                    if a.Value != self.my_unique_name:
-                                        raise Exception('Lost race for mutex -- %s owned by %s instead of %s' % (
-                                            self.global_mutex_name, a.Value, self.my_unique_name))
+                    self.api.AddServiceToReservation(self.resid, 'Mutex Service', self.mutex_name, [])
                     if self.logger:
                         self.logger.info('Got mutex')
                     break
@@ -221,32 +201,15 @@ Paste the following code into your driver or script:
             else:
                 if self.logger:
                     self.logger.info('Releasing mutex')
-            self.api.RemoveServicesFromReservation(self.resid, [self.global_mutex_name])
-
-
-Once your code gets a CloudShell API instance and knows the reservation id, you can allocate a mutex:
-
-    mutex = Mutex(api, resid, my_unique_value, 'MUTEX', logger)
-
-You can do this anywhere any number of times. It doesn't actually allocate anything.
-
-- my_unique_value should be unique to each driver instance in this reservation. For example, use *context.resource.name* or *helpers.get_resource_context_details().name*.
-- "logger" can be None or a Logger instance you already have, obtained from get_qs_logger() or similar. 
-- 'MUTEX' should be left as the default unless you have a reason to create multiple independent locking domains. Everyone who uses 'MUTEX' will exclude everyone else who uses 'MUTEX'. 
+            self.api.RemoveServicesFromReservation(self.resid, [self.mutex_name])
 
 Wrap a 'with mutex:' block around every section of code that reads or writes shared information about the reservation:
 
-    with mutex:
+    with Mutex(api, resid, logger):
         # good idea to reread the reservation information now
         rd = api.GetReservationDetails(resid).ReservationDescription
         # do stuff, e.g. api.UpdateConnectorsInReservation(...)
 
-
-Or you might prefer to avoid managing a 'mutex' variable. This would be functionally equivalent:
-    
-    with Mutex(api, resid, my_unique_value, 'MUTEX', logger):
-        rd = api.GetReservationDetails(resid).ReservationDescription
-        # do stuff
 
 Within the block you can assume you have exclusive access to the reservation, provided that other drivers are also written to wrap their accesses in
 the same way.
