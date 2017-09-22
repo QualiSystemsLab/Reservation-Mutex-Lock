@@ -171,7 +171,7 @@ You might also paste the definition from datamodel.xml into your own package.
 Paste the following code into your driver or script:
 
     from random import randint
-    from time import sleep
+    from time import sleep, time
     class Mutex(object):
         def __init__(self, api, resid, logger=None, mutex_name='MUTEX'):
             self.api = api
@@ -180,11 +180,12 @@ Paste the following code into your driver or script:
             self.mutex_name = mutex_name
 
         def __enter__(self):
+            t0 = time()
             for _ in range(100):
                 try:
                     self.api.AddServiceToReservation(self.resid, 'Mutex Service', self.mutex_name, [])
                     if self.logger:
-                        self.logger.info('Got mutex')
+                        self.logger.info('Got mutex after %d seconds' % (time() - t0))
                     break
                 except Exception as e:
                     if self.logger:

@@ -2,7 +2,6 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="cff1fbc3-b0bd-41cf-a28b-141ce2aa08ed" name="Default" comment="">
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/Mutex_Package/DataModel/datamodel.xml" afterPath="$PROJECT_DIR$/Mutex_Package/DataModel/datamodel.xml" />
       <change type="MODIFICATION" beforePath="$PROJECT_DIR$/README.md" afterPath="$PROJECT_DIR$/README.md" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
@@ -38,8 +37,8 @@
         <entry file="file://$PROJECT_DIR$/README.md">
           <provider selected="true" editor-type-id="split-provider[text-editor;markdown-preview-editor]">
             <state split_layout="SPLIT">
-              <first_editor relative-caret-position="625">
-                <caret line="211" column="0" lean-forward="true" selection-start-line="211" selection-start-column="0" selection-end-line="211" selection-end-column="0" />
+              <first_editor relative-caret-position="578">
+                <caret line="205" column="0" lean-forward="true" selection-start-line="174" selection-start-column="0" selection-end-line="205" selection-end-column="0" />
                 <folding />
               </first_editor>
               <second_editor />
@@ -239,8 +238,8 @@
       </provider>
       <provider selected="true" editor-type-id="split-provider[text-editor;markdown-preview-editor]">
         <state split_layout="SPLIT">
-          <first_editor relative-caret-position="625">
-            <caret line="211" column="0" lean-forward="true" selection-start-line="211" selection-start-column="0" selection-end-line="211" selection-end-column="0" />
+          <first_editor relative-caret-position="578">
+            <caret line="205" column="0" lean-forward="true" selection-start-line="174" selection-start-column="0" selection-end-line="205" selection-end-column="0" />
             <folding />
           </first_editor>
           <second_editor />
