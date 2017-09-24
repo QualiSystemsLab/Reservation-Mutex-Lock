@@ -1,25 +1,117 @@
 # Reservation-Mutex-Lock
 
-A protocol for locking the reservation for exclusive use, even across drivers and execution servers.
+How to lock the reservation for exclusive use, even across drivers and execution servers.
 
-In a nutshell: Call AddServiceToReservation to add a dummy service with alias "MUTEX". Consider yourself to
-have obtained exclusive access to the reservation only if AddServiceToReservation succeeded. If it failed, 
-sleep for a few seconds and try again. Delete the service to unlock.
- 
-Sample code (Python "with" block) and a sample dummy service are provided. See below.
-
-The only aspects that need universal adoption:
- - use of AddServiceToReservation success or failure to define locking
- - the service alias "MUTEX"
-
+In a nutshell:
+Call AddServiceToReservation to add a dummy service with alias "MUTEX". You have obtained exclusive 
+access to the reservation only if AddServiceToReservation succeeded. If it failed, 
+sleep for a few seconds and try again in a loop. Delete the service to unlock.
 
 This mechanism is currently being used by one specific driver to protect it from other instances of itself. 
 Other drivers that adopt compatible locking code will be able to safely coexist with each other.
 
-If you notice any flaws or have any suggestions for improvement, let us know with a GitHub issue or comment.
+## Usage
 
-We would especially like to make the sample code minimal, unobtrusive, free of dependencies, and as easy 
-to use as possible, since it can only provide protection among people who use it.
+The following code is just an example. The only requirements for this approach to work: 
+- rely on the success or failure of AddServiceToReservation to control exclusive access
+- use the service alias "MUTEX"
+
+Steps:
+
+1. Drag Mutex_Packages.zip into the portal, or create a service model 'Mutex Service' 
+
+1. Paste into your driver or script:
+
+        from random import randint
+        from time import sleep, time
+        class Mutex(object):
+            def __init__(self, api, resid, logger=None, mutex_name='MUTEX'):
+                self.api = api
+                self.resid = resid
+                self.logger = logger
+                self.mutex_name = mutex_name
+    
+            def __enter__(self):
+                t0 = time()
+                for _ in range(100):
+                    try:
+                        self.api.AddServiceToReservation(self.resid, 'Mutex Service', self.mutex_name, [])
+                        if self.logger:
+                            self.logger.info('Got mutex after %d seconds' % (time() - t0))
+                        break
+                    except Exception as e:
+                        if self.logger:
+                            self.logger.info('Failed to add mutex service: %s; sleeping 2-5 seconds' % str(e))
+                        sleep(randint(2, 5))
+                else:
+                    if self.logger:
+                        self.logger.info('Waited over 200 seconds without getting the mutex; continuing without it')
+    
+            def __exit__(self, exc_type, exc_val, exc_tb):
+                if exc_type:
+                    if self.logger:
+                        self.logger.info('Releasing mutex, caught error %s %s %s' % (str(exc_type), str(exc_val), str(exc_tb)))
+                else:
+                    if self.logger:
+                        self.logger.info('Releasing mutex')
+                self.api.RemoveServicesFromReservation(self.resid, [self.mutex_name])
+
+1. Wrap a 'with mutex' block around every section of code that reads or writes shared information about the reservation:
+
+        with Mutex(api, resid, logger):
+            # good idea to reread the reservation information now
+            rd = api.GetReservationDetails(resid).ReservationDescription
+            # do stuff, e.g. api.UpdateConnectorsInReservation(...)
+
+
+Within the block you can assume you have exclusive access to the reservation, provided that other drivers
+running in the reservation wrap their accesses in the same way.
+
+To achieve safety with the bare minimum effort, you could simply move most of your code under a single 'with Mutex' 
+block. But to improve parallelism, you could try to minimize the amount of code executed under 'with Mutex' blocks,
+and perform time-consuming tasks outside 'with Mutex' if they don't read or write shared information in the reservation.
+
+
+## How it works
+
+### Cooperation among drivers
+
+All parties that need safe locked access to the reservation must cooperate and access the reservation only after
+obtaining exclusive access with the same mutex mechanism.
+
+Nothing in the system stops an uncooperative party from ignoring the locks and directly accessing the reservation.
+
+This mutex mechanism works only within the same reservation. You are only protected from other parties that use the same mutex name.
+In most cases there should be a single mutex name for everyone accessing the reservation, so you could keep the default
+name "MUTEX." 
+
+In special situations you might set up multiple independent lock domains with multiple mutex names.
+
+### Mechanism 
+A Python lock won't work unless the two functions that need exclusive access are in the same driver instance.
+Different driver instances are different Python processes. 
+
+Something like a lock file on the filesystem would only work if there was only a single execution server in the system. If you had a shared network drive, it might  work.
+
+The only universal central component in a CloudShell system with multiple execution servers is the CloudShell database. Accessing the database directly is too complicated and not directly supported. 
+
+There is a way to use the standard CloudShell API, which manipulates the reservation contents in the database, to achieve exclusive access
+across execution servers.
+
+
+### Convenient behavior of AddServiceToReservation
+The AddServiceToReservation API protects against adding two services to a reservation with the same name. It most likely has its own 
+database-based locking internally.
+
+If you call AddServiceToReservation and it succeeds, you can be sure that nobody else already added a service with the same name.
+If someone tries to add the same thing a split second later, their attempt to add the same service name will fail, and they would wait a
+few seconds and try again. Based on how reliably the error "CloudShell API error 100: Service with given alias already exists" has been seen, 
+we assume that such locking exists in the product.  
+
+
+Note that Mutex Service itself has no functionality. It is just an arbitrary object to add to the reservation and
+exploit the potential of the AddServiceToReservation API as a locking mechanism.
+
 
 
 ## Why locking is needed
@@ -117,102 +209,3 @@ To guarantee correctness, we need a way for each driver to lock the reservation:
 
 
 
-
-## How it works
-
-### Cooperation among drivers
-
-All parties that need safe locked access to the reservation must cooperate and access the reservation only after
-obtaining exclusive access with the same mutex mechanism.
-
-Nothing in the system stops an uncooperative party from ignoring the locks and directly accessing the reservation.
-
-This mutex mechanism works only within the same reservation. You are only protected from other parties that use the same mutex name.
-In most cases there should be a single mutex name for everyone accessing the reservation, so you could keep the default
-name "MUTEX." 
-
-In special situations you might set up multiple independent lock domains with multiple mutex names.
-
-### Mechanism 
-A Python lock won't work unless the two functions that need exclusive access are in the same driver instance.
-Different driver instances are different Python processes. 
-
-Something like a lock file on the filesystem would only work if there was only a single execution server in the system. If you had a shared network drive, it might  work.
-
-The only universal central component in a CloudShell system with multiple execution servers is the CloudShell database. Accessing the database directly is too complicated and not directly supported. 
-
-There is a way to use the standard CloudShell API, which manipulates the reservation contents in the database, to achieve exclusive access
-across execution servers.
-
-
-### Convenient behavior of AddServiceToReservation
-The AddServiceToReservation API protects against adding two services to a reservation with the same name. It most likely has its own 
-database-based locking internally.
-
-If you call AddServiceToReservation and it succeeds, you can be sure that nobody else already added a service with the same name.
-If someone tries to add the same thing a split second later, their attempt to add the same service name will fail, and they would wait a
-few seconds and try again. Based on how reliably the error "CloudShell API error 100: Service with given alias already exists" has been seen, 
-we assume that such locking exists in the product.  
-
-
-Note that Mutex Service itself has no functionality. It is just an arbitrary object to add to the reservation and
-exploit the potential of the AddServiceToReservation API as a locking mechanism.
-
-
-## Usage
-
-This code is only offered for convenience. You can ignore the following package and code. As long as you rely on the success of 
-AddServiceToReservation and use the service alias "MUTEX", it would be compatible with this approach.
-
-To create a dedicated dummy service named Mutex Service, Mutex_Packages.zip is provided in the Releases section. 
-You might also paste the definition from datamodel.xml into your own package.
-
-
-Paste the following code into your driver or script:
-
-    from random import randint
-    from time import sleep, time
-    class Mutex(object):
-        def __init__(self, api, resid, logger=None, mutex_name='MUTEX'):
-            self.api = api
-            self.resid = resid
-            self.logger = logger
-            self.mutex_name = mutex_name
-
-        def __enter__(self):
-            t0 = time()
-            for _ in range(100):
-                try:
-                    self.api.AddServiceToReservation(self.resid, 'Mutex Service', self.mutex_name, [])
-                    if self.logger:
-                        self.logger.info('Got mutex after %d seconds' % (time() - t0))
-                    break
-                except Exception as e:
-                    if self.logger:
-                        self.logger.info('Failed to add mutex service: %s; sleeping 2-5 seconds' % str(e))
-                    sleep(randint(2, 5))
-            else:
-                if self.logger:
-                    self.logger.info('Waited over 200 seconds without getting the mutex; continuing without it')
-
-        def __exit__(self, exc_type, exc_val, exc_tb):
-            if exc_type:
-                if self.logger:
-                    self.logger.info('Releasing mutex, caught error %s %s %s' % (str(exc_type), str(exc_val), str(exc_tb)))
-            else:
-                if self.logger:
-                    self.logger.info('Releasing mutex')
-            self.api.RemoveServicesFromReservation(self.resid, [self.mutex_name])
-
-Wrap a 'with mutex:' block around every section of code that reads or writes shared information about the reservation:
-
-    with Mutex(api, resid, logger):
-        # good idea to reread the reservation information now
-        rd = api.GetReservationDetails(resid).ReservationDescription
-        # do stuff, e.g. api.UpdateConnectorsInReservation(...)
-
-
-Within the block you can assume you have exclusive access to the reservation, provided that other drivers are also written to wrap their accesses in
-the same way.
-
-To achieve safety with the bare minimum effort, you could simply move most of your code under a 'with mutex:' block. But to improve parallelism, you could try to minimize the amount of code executed under 'with mutex:'.  

@@ -9,14 +9,11 @@
             <AttributeValues/>
             <Models>
                 <ResourceModel Description="" Name="Mutex Service" SupportsConcurrentCommands="false">
-                    <AttachedAttributes>
-                    </AttachedAttributes>
-                    <AttributeValues>
-                    </AttributeValues>
+                    <AttachedAttributes/>
+                    <AttributeValues/>
                     <ParentModels/>
                     <Drivers/>
-                    <Scripts>
-                    </Scripts>
+                    <Scripts/>
                 </ResourceModel>
             </Models>
             <Categories/>
