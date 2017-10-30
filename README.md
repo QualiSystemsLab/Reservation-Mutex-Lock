@@ -18,7 +18,7 @@ The following code is just an example. The only requirements for this approach t
 
 Steps:
 
-1. Drag Mutex_Packages.zip into the portal, or create a service model 'Mutex Service' 
+1. Drag Mutex_Package.zip into the portal, or create a service model 'Mutex Service' 
 
 1. Paste into your driver or script:
 
